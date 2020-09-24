@@ -22,7 +22,7 @@ This is a plugin written for the nrelay bot framework for the game Realm of the 
 
 1. Create a new nrelay project via the CLI
 1. Copy and paste the `realmspy.js` file and `modules` folder into the /lib/ folder
-1. Add your Discord bot token inside `config.json`
+1. Add your Discord bot token inside `modules/discord-config.json`
 1. Modify the channel names inside `modules/discord.js` to match your Discord server
 1. Add accounts to the nrelay file (enough to cover every nexus) then run it with `nrelay run`
 
