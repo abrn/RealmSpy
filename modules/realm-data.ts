@@ -71,18 +71,19 @@ export let pubhallsStaff: Array<string> = ["aespear", "eurydice", "alohades", "m
     "oghazsa", "over", "simontroll", "sampurdy", "salcosa", "skarnrmain", "smokebreak", "sour", "spaxes", "stgyreaper", "superxduty", 
     "darkvii", "demiglands", "derpynexus", "downdraft", "fametime", "famlove", "twelfth", "hcomlogic", "jasonfuse", "lulzwtfbbq", 
     "zacksoccer", "permezan", "reyepea", "xlove", "xenruzz", "xy", "chevyo", "vasibro", "mastabayra", "ilydeca", "flebbian", 
-    "hipnosis", "hiwizardao", "itsbaryla", "jisuwu", "brockobama", "balloonpop", "dayqpi", "soareski", "sadturtl", "scrochyyyy", 
+    "hiwizardao", "itsbaryla", "jisuwu", "brockobama", "balloonpop", "dayqpi", "soareski", "sadturtl", "scrochyyyy", "hipnosis",
     "joeyhere", "zariky", "philiplayz", "zumbie", "notwhyte", "tiern", "blib", "baddestq", "court", "emisaurus", "mutza", "seawgirl", 
-    "yerul", "ixenenl", "piccyp", "planprob", "protato"]
+    "yerul", "ixenenl", "piccyp", "planprob", "protato", "chimeny", "mangokek", "deveaux", "queuing", "yurnero", "cuvbruvopl", "japani",
+    "puberty", "autoknight", "notwhyte", "dymorius", "sour", "keshav", "nowadayss", "xbyxbd", "chibisora", "ixeneni"]
 
 export let oryxSanctuaryStaff: Array<string> = ["spencer", "darkmattr", "awsomflake", "xenoskill", "blue", "crucks", 
-    "consolemc", "skelits", "cebmofroz", "raginghard", "caped", "alonex", "niahoimino", "xenobwast", "fist", 
+    "consolemc", "skelits", "cebmofroz", "raginghard", "caped", "alonex", "niahoimino", "xenobwast", "reetado", "foxesrock",
     "akky", "johnnisins", "defancers", "failuure", "drsupbro", "behkoff", "aka", "wandwolf", "nanuli", "luciancrab", 
     "bgjoe", "ybysduzfdy", "sachariase", "cheesehog", "hogoq", "hogoqr", "cichlid", "oryxplmp", "thewar", "mysterygod", 
     "jobbjobb", "uwotmateyz", "billbosbag", "delphio", "wolfwizzrd", "lordthedos", "nashex", "theripers", "godlander", 
     "flamed", "apolarbear", "assasianiv", "unrest", "wookyskill", "lordsgod", "melunz", "octavianii", "xxdatbossx", "zumbie", 
     "floflorian", "terriblty", "nickonater", "jeffurry", "luke", "wolvesmyth", "story", "sappyisher", "mowplow", "theperson", 
-    "skrillergg", "torniud", "deatttthhh", "phoejal", "hjjhey", "cryoteknix", "waffleswuf", "razzalot", "rotmglag", "matuxlt", 
+    "skrillergg", "torniud", "deatttthhh", "phoejal", "hjjhey", "cryoteknix", "waffleswuf", "rotmglag", "matuxlt", 
     "bronzeow", "xxoxmann", "jahschwitz", "piesforlif", "landine", "bombbitto", "gvbcreeper", "vorckea", "varsverum", "vorverer", 
     "aiioy", "tilenol", "ytwimlam", "tgrobby", "critbonk", "stgyreaper", "piccyp", "supsam", "avengerkev", "kiari", "hurja", 
     "zifour", "implosionk", "ghostbloxt", "immunit", "bg", "iextinct", "anitez", "sampurdy", "saknis", "knifedenni", "bonghitsss"];
@@ -91,133 +92,139 @@ export let dungeoneerStaff: Array<string> = ["apolarbear", "dethalt", "wildguyx"
     "darkmattr", "lordsgod", "nashex", "arkhine", "ybysduzfdy", "guidegoose", "immunit", "caped", "alpha", "behkoff", "wandwolf", "gamecloud", 
     "wolfwizzrd", "eatingfurs", "bgjoe", "xenoskill", "vorckea", "landine", "mowplow", "cryoteknix", "varsverum", "godlander", "jahschwitz", 
     "lordthedos", "niahoimino", "cushmara", "crucks", "apolarbear", "skrillergg", "xxoxmann", "consolemc", "deatttthhh", "fist", "jobbjobb", 
-    "alloy", "ahsuhdude", "terriblty", "zalark"];
+    "alloy", "ahsuhdude", "terriblty", "zalark", "bullbruh", "astrosickl", "allegation", "zumbie"];
 
 export let divinityStaff: Array<string> = ["juancarloo", "memorable", "jiggylord", "daryldaryn", "izhaksrock", "biohuntera", "johnwise", 
-    "shutup", "theurul", "unrest", "anitez", "catalyze", "daddywagon", "hunnit", "spared", "spencerhoo", "paynusnut", "lize", "vexi", "lkea", 
-    "bunungo", "couptheory", "epicymaboo", "llama", "luke", "strip", "tankinem", "aceaid", "fantastic", "flebbian", "oldpot", "penguiniii", 
-    "fantastic", "flebbian", "underthebe", "disapprove", "fatock", "joseph", "yamaking", "yumx", "killerchoy", "playcool"];
+    "shutup", "theurul", "numbaones", "anitez", "lordthedos", "daddywagon", "hunnit", "spared", "spencerhoo", "paynusnut", "lize", "vexi", 
+    "bunungo", "epicymaboo", "erggin", "wyl", "strip", "tankinem", "aceaid", "fantastic", "flebbian", "legal", "penguiniii", 
+    "fantastic", "flebbian", "underthebe", "disapprove", "fatock", "joseph", "yamaking", "yumx", "killerchoy", "playcool", "oec", "hotsalt",
+    "dossi", "dethalt", "exploit", "vxlid", "qutiepi", "mexireeses", "grazeeeeee"];
 
 export let sbcStaff: Array<string> = ["aw", "blessy", "maginallll", "tim", "neuro", "adan", "benjibros", "cubeee", "finnish", "dingxyxfve", 
     "drake", "magycyan", "aylith", "marvin", "moonshoot", "mrunibro", "parfait", "aqualuma", "baanana", "dannypho", "darkkitty", "fearteddy", 
     "berdlarf", "jukkii", "fazekisi", "kaboobies", "khaleeesi", "lachyv", "lollion", "maxhello", "tharms", "brett", "kablooeyy", "lbce", "mileena", 
-    "miweena", "ryanzhang", "thatsjake", "sebchoof"]
+    "miweena", "ryanzhang", "thatsjake", "sebchoof", "wounds"]
 
-export let oryxRaiders: Array<string> = ["japan", "craykiller", "andreasan", "kelrocks", "sexay", "falc", "baes", "rybroo", "maldir", "unicorn",
-    "tharms", "salcosa"]
+export let fungalStaff: Array<string> = ["deatttthhh", "nyyx", "waffleswuf", "caibo", "immunit", "steria", "heinsenduf", "silntsong", 
+    "imasquirtl", "tarquinius", "akdipasupi", "axsolo", "melunz", "avengerkev", "torniud", "rglking", "swimdoggo", "bryceania", 
+    "lightelite", "leveltwent", "pugdog", "hauntedthc", "almostto", "marinac", "demomannob", "meangirlz", "ashdargon", "brillo", 
+    "dinopleb", "hippei", "moves", "orangsauce", "piesforlif", "themiddler", "triforcej", "xblazikenx", "zeladaar", "archboby", "frostydu"]
+
+export let shattersStaff: Array<string> = ["zariky", "febelmeste", "brillo", "heisme", "nyyx", "whaleparty", "kyeopta", "mari", "clash", 
+    "dlajdiuawh", "heavydk", "oofg", "someonelol", "hippei", "leveltwent", "hokieman", "connoreer", "aceaid", "hipnosis", "ooops", "rglking", 
+    "slodiiiiii", "hiwizardao", "oooshie", "trigplanar", "nottrig", "kinkypink", "pinkerjoe", "discrie", "allegation", "blizzardha", "hihihs", 
+    "swiftywowz", "wook", "jumpybug", "ybysduzfdy", "mag", "johndw"]
 
 export enum serverEnum {
-    usw4 = "uswest4",
-    usw3 = "uswest3",
-    usw2 = "uswest2",
-    usw = "uswest",
-    ussw = "ussouthwest",
-    uss3 = "ussouth3",
-    uss2 = "ussouth2",
-    uss = "ussouth",
-    usnw = "usnorthwest",
-    usmw2 = "usmidwest2",
-    usmw = "usmidwest",
-    use4 = "useast4",
-    use3 = "useast3",
-    use2 = "useast2",
-    use = "useast",
-    euw2 = "euwest2",
-    euw = "euwest",
-    eusw = "eusouthwest",
-    eus = "eusouth",
-    eun2 = "eunorth2",
-    eun = "eunorth",
-    eue2 = "eueast2",
-    eue = "eueast",
-    aus = "australia",
-    ase = "asiasoutheast",
-    ae = "asiaeast"
+    usw4 = "uswest4",       usw3 = "uswest3",       usw2 = "uswest2",   usw = "uswest",
+    ussw = "ussouthwest",   uss3 = "ussouth3",      uss2 = "ussouth2",  uss = "ussouth",
+    usnw = "usnorthwest",   usmw2 = "usmidwest2",   usmw = "usmidwest", use4 = "useast4",
+    use3 = "useast3",       use2 = "useast2",       use = "useast",     euw2 = "euwest2",
+    euw = "euwest",         eusw = "eusouthwest",   eus = "eusouth",    eun2 = "eunorth2",      
+    eun = "eunorth",        eue2 = "eueast2",       eue = "eueast",     aus = "australia",
+    ase = "asiasoutheast",  ae = "asiaeast"
 }
+
+export function parseClass(classId: number): string {
+    switch(classId)
+    {
+        case 768: return 'Rogue';
+        case 775: return 'Archer';
+        case 782: return 'Wizard';
+        case 784: return 'Priest';
+        case 797: return 'Warrior';
+        case 798: return 'Knight';
+        case 799: return 'Paladin';
+        case 800: return 'Assassin';
+        case 801: return 'Necromancer';
+        case 802: return 'Huntress';
+        case 803: return 'Mystic';
+        case 804: return 'Trickster';
+        case 805: return 'Sorcerer';
+        case 806: return 'Ninja';
+        case 785: return 'Samurai';
+        case 796: return 'Bard';
+        default: return 'Unknown';
+    }
+}
+
+export function parseGuildRank(rank: number): string {
+    switch(rank)
+    {
+        case 0: return 'Initiate';
+        case 10: return 'Member';
+        case 20: return 'Officer';
+        case 30: return 'Leader';
+        case 40: return 'Founder';
+        default: return 'Unknown';
+    }
+}
+
 
 export function parseServer(server: string): string {
     let newServer: string = null;
     switch (server) {
-        case 'usw4': 
-            newServer = "uswest4";
-            break;
-        case 'usw3': 
-            newServer = "uswest3";
-            break;
-        case 'usw2': 
-            newServer = "uswest2";
-            break;
-        case 'usw': 
-            newServer = "uswest";
-            break;
-        case 'ussw': 
-            newServer = "ussouthwest";
-            break;
-        case 'uss3': 
-            newServer = "ussouth3";
-            break;
-        case 'uss2': 
-            newServer = "ussouth2";
-            break;
-        case 'uss': 
-            newServer = "ussouth";
-            break;
-        case 'usnw': 
-            newServer = "usnorthwest";
-            break;
-        case 'usmw2': 
-            newServer = "usmidwest2";
-            break;
-        case 'usmw': 
-            newServer = "usmidwest";
-            break;
-        case 'use4': 
-            newServer = "useast4";
-            break;
-        case 'use3': 
-            newServer = "useast3";
-            break;
-        case 'use2': 
-            newServer = "useast2";
-            break;
-        case 'use': 
-            newServer = "useast";
-            break;
-        case 'euw2': 
-            newServer = "euwest2";
-            break;
-        case 'euw': 
-            newServer = "euwest";
-            break;
-        case 'eusw': 
-            newServer = "eusouthwest";
-            break;
-        case 'eus': 
-            newServer = "eusouth";
-            break;
-        case 'eun2': 
-            newServer = "eunorth2";
-            break;
-        case 'eun': 
-            newServer = "eunorth";
-            break;
-        case 'eue2': 
-            newServer = "eueast2";
-            break;
-        case 'eue': 
-            newServer = "eueast";
-            break;
-        case 'aus': 
-            newServer = "australia";
-            break;
-        case 'ase': 
-            newServer = "asiasoutheast";
-            break;
-        case 'ae': 
-            newServer = "asiaeast"
-            break;
+        case 'usw4': return "uswest4";
+        case 'usw3': return "uswest3";
+        case 'usw2': return  "uswest2";
+        case 'usw': return "uswest";
+        case 'ussw': return "ussouthwest";
+        case 'uss3': return "ussouth3";
+        case 'uss2': return "ussouth2";
+        case 'uss': return "ussouth";
+        case 'usnw': return "usnorthwest";
+        case 'usmw2': return "usmidwest2";
+        case 'usmw': return "usmidwest";
+        case 'use4': return "useast4";
+        case 'use3': return "useast3";
+        case 'use2': return "useast2";
+        case 'use': return "useast";
+        case 'euw2': return "euwest2";
+        case 'euw': return "euwest";  
+        case 'eusw': return "eusouthwest";    
+        case 'eus': return "eusouth";
+        case 'eun2': return "eunorth2";
+        case 'eun': return "eunorth"; 
+        case 'eue2': return "eueast2";     
+        case 'eue': return "eueast";       
+        case 'aus': return "australia";
+        case 'ase': return "asiasoutheast";
+        case 'ae': return "asiaeast"
     }
-    return newServer;
+}
+
+export function parseDiscordServer(name: string): {name: string, channel: string} {
+    switch(name)
+        {
+            case 'divinty': return {
+                name: 'Divinity',
+                channel: '756476045422624831'
+            };
+            case 'dungeoneer': return {
+                name: 'Dungeoneer',
+                channel: '756476065601421393'
+            };
+            case 'sanctuary': return {
+                name: 'Oryx Sanctuary',
+                channel: '756476095582306336'
+            };
+            case 'pubhalls': return {
+                name: 'Pub Halls',
+                channel: '756475912115060766'
+            };
+            case 'shatters': return {
+                name: 'Shatters',
+                channel: '756475933615063131'
+            };
+            case 'fungal': return {
+                name: 'Fungal Cavern',
+                channel: '756476159637717003'
+            };
+            case 'sbc': return {
+                name: 'SBC',
+                channel: '756475956545454151'
+            };
+        }
 }
 
 export function parseRealmChat(message: string): EventResponse {
