@@ -1,44 +1,80 @@
-import * as Discord from 'discord.js';
 import { prefix, token } from './discord-config.json';
 
 import fs = require('fs');
-import moment from 'moment';
+import moment = require('moment');
 import Redis = require('redis');
 
-import { Client, Library, Logger, LogLevel } from 'nrelay';
+import { Library, Logger, LogLevel, PlayerData } from 'nrelay';
+import { Database } from './database';
 
+import * as Discord from 'discord.js';
 import * as RealmData from './realm-data';
+import * as Constants from './constants';
 
 export class DiscordBot {
-
-    private bot: Discord.Client;
-    private realm: External;
-    private logger: any;
+    public bot: Discord.Client;
+    public realm: External;
+   // public database: Database;
+    public logger: any;
     public ready: boolean = false;
-
-    private embedColor: string = '#2e7367';
+    public embedColor: string = '#2e7367';
 
     constructor() {
         this.bot = new Discord.Client();
         this.bot.login(token);
+
+        //this.database = new Database();
 
         // called when the bot connects to Discord
         this.bot.on('ready', () => {
             this.realm = new External();
             this.ready = true;
 
-            this.logger = fs.createWriteStream('command_log.txt', {
-                flags: 'a'
-            })
+            // open the bot_commands.txt file stream
+            this.logger = fs.createWriteStream('command_log.txt', { flags: 'a' });
             Logger.log('Discord', 'Bot connected!', LogLevel.Success);
-            this.bot.user.setActivity('!commands', { type: 'WATCHING' })
+            this.bot.user.setActivity('!commands', { type: 'WATCHING' });
+        });
+
+        // called when Discord receives an error
+        this.bot.on('error', (error) => {
+            Logger.log('Discord', `Error: ${error}`, LogLevel.Error);
+        });
+
+        this.bot.on('messageReactionAdd', (message, user) => {
+            if (message.message.channel.id !== Constants.CHANNELS.reaction_roles) return;
+
+            let roleName = '';
+            switch(message.emoji.id)
+            {
+                case '763938988893011988': roleName = 'Divinity'; break;
+                case '763938989643530251': roleName = 'Dungeoneer'; break;
+                case '763938990524989551': roleName = 'Sanctuary'; break;
+                case '763938991208661003': roleName = 'SBC'; break;
+                case '763938992185802772': roleName = 'Pub Halls'; break;
+                case '763939015895547954': roleName = 'Shatters'; break;
+                case '763939016810037328': roleName = 'Fungal'; break;
+                default: return;
+            }
+            let guild = this.bot.guilds.cache.get('725042340959617134');
+            let member = guild.members.cache.get(user.id);
+            let role = guild.roles.cache.find(r => r.name == roleName);
+            if (member && role) member.roles.add(role);
         });
 
         this.bot.on('message', message => {
-        
+            // check if the bot is ready before handling commands
+            if (!this.ready) {
+                this.sendStartupMessage(message);
+                message.delete();
+                return;
+            }
+
             // delete all non-commands in #bot-commands
-            if (message.channel.id == '725042418251989064' && !message.content.startsWith(prefix) &&
-                !message.author.bot) message.delete();
+            if (message.channel.id == Constants.CHANNELS.bot_commands && !message.content.startsWith(prefix) && !message.author.bot) {
+                message.delete();
+                return;
+            }
 
             // only handle messages that start with the command prefix
             if (!message.content.startsWith(prefix) || message.author.bot) return;
@@ -52,32 +88,18 @@ export class DiscordBot {
             const command = args.shift().toLowerCase();
             const author = this.bot.users.cache.get(message.author.id);
 
+            // write the command to the log files
             let date = Date.now();
             let newDate = moment(date, 'x').format('DD-MM-YY HH:mm:ss')
             this.logger.write(`[${newDate}] [${message.author.username}] ${command} ${args.toString()}\n`);
             
-            // check if the bot is ready before handling commands
-            if (!this.ready) {
-                this.sendStartupMessage(message);
-                message.delete();
-                return;
-            }
-
+            // handle commands
             switch(command) {
                 case 'sendcommands':
                     this.sendCommandsMessage(message, false);
                     break;
-                case 'sendwelcome':
-                    this.sendWelcomeMessage();
-                    break;
                 case 'commands':
                     this.sendCommandsMessage(message, true);
-                    break;
-                case 'verify':
-                    this.handleVerifyCommand(message);
-                    break;
-                case 'unverify':
-                    this.handleUnverifyCommand(message, args);
                     break;
                 case 'track':
                     this.handleTrackCommand(message, args);
@@ -91,6 +113,9 @@ export class DiscordBot {
                     break;
                 case 'realm':
                     this.handleRealmCommand(message, args);
+                    break;
+                case 'sendreactions':
+                    this.sendReactionRoles();
                     break;
                 default:
                     author.send('Command not found.. please send **``!commands``** for a list of commands');
@@ -108,58 +133,92 @@ export class DiscordBot {
     public handleTrackCommand(message: Discord.Message, args: string[]): void {
         let alphaRegex = /^[A-z]+$/g;
 
-        this.realm.checkVerification(message.author.id, (result) => {
-            if (!result) {
-                message.author.send('You are not verified to use the bot, please send **``!verify``** in the #bot-commands channel')
-            } else {
-                if (args[1] && !args[1].match(alphaRegex)) {
-                    message.author.send('Your command was not sent, please enter only alpha-numeric characters (a-Z)');
-                    return;
-                }
-        
-                if (args[0] == 'add') {
-                    if (args.length >= 1) {
-                        this.realm.addToTracked(args[1], message.author.id, (result) => {
-                            if (result) {
-                                message.author.send(`Player **\`\`${args[1]}\`\`** was added to your track list`);
-                            } else {
-                                message.author.send(`Player **\`\`${args[1]}\`\`** is already in your track list`);
-                            }
-                        });
-                        return;
+        if (args[1] && !args[1].match(alphaRegex)) {
+            message.author.send('Your command was not sent, please enter a username with only alpha-numeric characters (A-z)');
+            return;
+        }
+
+        if (args[0] == 'add') {
+
+            //let result = this.database.addTrackedPlayer(args[1], message.author.id);
+
+            //if (result) {
+                //message.author.send(`Player **\`\`${args[1]}\`\`** was added to your track list`);
+            //} else {
+                //message.author.send(`Player **\`\`${args[1]}\`\`** is already in your track list`);
+            //}
+
+            if (args.length >= 1) {
+                this.realm.addToTracked(args[1], message.author.id, (result) => {
+                    if (result) {
+                        message.author.send(`Player **\`\`${args[1]}\`\`** was added to your track list`);
+                    } else {
+                        message.author.send(`Player **\`\`${args[1]}\`\`** is already in your track list`);
                     }
-                } else if (args[0] == 'remove') {
-                    if (args.length >= 1) {
-                        this.realm.removeFromTracked(args[1], message.author.id, (result) => {
-                            if (result) {
-                                message.author.send(`Player **\`\`${args[1]}\`\`** was removed from your track list`);
-                            } else {
-                                message.author.send(`Player **\`\`${args[1]}\`\`** is not in your track list`);
-                            }
-                        });
-                        return;
-                    }
-                } else if (args[0] == 'toggle') {
-                    this.realm.toggleTracking(message.author.id, (enabled) => {
-                        if (enabled) {
-                            message.author.send('Tracking **``enabled``**');
-                        } else {
-                            message.author.send('Tracking **``temporarily disabled``**');
-                        }
-                     });
-                     return;
-                } else if (args[0] == 'clear') {
-                    //this.realm.clearTrackList(message.author.id);
-                    message.author.send('Your track list has been cleared');
-                    return;
-                } else {
-                    message.author.send('Please enter a track command type: **``!track add/remove/toggle/clear``**');
-                    return;
-                }
-                
-                message.author.send(`Please enter a player username: **\`\`!track ${args[1]} PlayerName\`\`**`);
+                });
+                return;
             }
-        });
+        } else if (args[0] == 'remove') {
+            
+            //let result = this.database.removeTrackedPlayer(args[1], message.author.id);
+
+            //if (result) {
+                //message.author.send(`Player **\`\`${args[1]}\`\`** was removed from your track list`);
+            //} else {
+                //message.author.send(`Player **\`\`${args[1]}\`\`** is not in your track list`);
+            //}
+            
+            if (args.length >= 1) {
+                this.realm.removeFromTracked(args[1], message.author.id, (result) => {
+                    if (result) {
+                        message.author.send(`Player **\`\`${args[1]}\`\`** was removed from your track list`);
+                    } else {
+                        message.author.send(`Player **\`\`${args[1]}\`\`** is not in your track list`);
+                    }
+                });
+                return;
+            }
+        } else if (args[0] == 'toggle') {
+            this.realm.toggleTracking(message.author.id, (enabled) => {
+                if (enabled) {
+                    message.author.send('Tracking **``enabled``**');
+                } else {
+                    message.author.send('Tracking **``temporarily disabled``**');
+                }
+             });
+             return;
+        } else if (args[0] == 'clear') {
+            //this.database.clearTracklist(message.author.id);
+
+            //message.author.send('Your tracklist has been cleared');
+            //return;
+        } else if (args[0] == 'list') {
+            //let tracklist = this.database.getTracklist(message.author.id);
+
+            //if (tracklist.length == 0) {
+                //message.author.send('You are not tracking anyone!');
+                //return;
+            //}
+
+            //let description = '\n```';
+            //tracklist.forEach((player) => {
+                //description = description + `${player}\n`;
+            //})
+            //description = description + '```';
+
+            //let embed = new Discord.MessageEmbed()
+                //.setTitle('Your tracklist')
+                //.setDescription(description)
+                //.setTimestamp()
+                //.setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
+
+            //message.author.send(embed).catch((error) => { return });
+        } else {
+           // message.author.send('Please enter a track command type: \n```!track add player\n!track remove player\n!track toggle\n!track clear\n!track list```');
+           // return;
+        }
+        
+        message.author.send(`Please enter a player username: **\`\`!track ${args[1]} PlayerName\`\`**`);
     }
 
     /**
@@ -171,19 +230,13 @@ export class DiscordBot {
     public handleLocCommand(message: Discord.Message, args: string[]): void {
         let alphaRegex = /^[A-z]+$/g;
 
-        this.realm.checkVerification(message.author.id, (result) => {
-            if (!result) {
-                message.author.send('You are not verified to use the bot, please send **``!verify``** in the #bot-commands channel')
-            } else {
-                if (args[0] && !args[0].match(alphaRegex)) {
-                    message.author.send('Your command was not sent, please enter only alpha-numeric characters (a-Z)');
-                    return;
-                }
-        
-                this.realm.getLocation(args[0], function(location) {
-                    message.author.send(`${location}`);
-                });
-            }
+        if (args[0] && !args[0].match(alphaRegex)) {
+            message.author.send('Your command was not sent, please enter only alpha-numeric characters (a-Z)');
+            return;
+        }
+
+        this.realm.getLocation(args[0], function(location) {
+            message.author.send(`${location}`);
         });
     }
 
@@ -192,9 +245,9 @@ export class DiscordBot {
      * 
      * @param message the discord message sent by the user
      */
-    public handleVerifyCommand(message: Discord.Message): void {
+    /* public handleVerifyCommand(message: Discord.Message): void {
         // only allow users to verify via the #bot-commands channel
-        if (message.channel.type !== "text" || message.channel.id !== "725042418251989064") {
+        if (message.channel.type !== "text" || message.channel.id !== Constants.CHANNELS.bot_commands) {
             message.author.send('Please send the verification command from the #bot-commands channel');
             return;
         }
@@ -207,7 +260,7 @@ export class DiscordBot {
                 message.author.send('You have been verified to use the bot, thanks!');
             }
         });
-    }
+    } */
 
     /**
      *  Handle the command !unverify
@@ -215,9 +268,9 @@ export class DiscordBot {
      * @param message the discord message sent by the user
      * @param args the parsed arguments from the discord message
      */
-    public handleUnverifyCommand(message: Discord.Message, args: string[]): void {
+    /* public handleUnverifyCommand(message: Discord.Message, args: string[]): void {
         // only allow users to send the command via the #bot-commands channel
-        if (message.channel.type !== "text" || message.channel.id !== "725042418251989064") {
+        if (message.channel.type !== "text" || message.channel.id !== Constants.CHANNELS.bot_commands) {
             message.author.send('Please send the unverify command from the #bot-commands channel');
             return;
         }
@@ -245,7 +298,7 @@ export class DiscordBot {
             message.author.send('You need to be an Admin or Security to send this command');
             return;
         }
-    }
+    } */
 
     /**
      *  Handle the command !realm
@@ -334,16 +387,15 @@ export class DiscordBot {
     public callPlayer(username: string, tracker: string): void {
         if (!this.ready) return;
         let user = this.bot.users.cache.get(tracker);
+        if (!user) return;
 
-        if (user) {
-            let tracking = this.realm.trackingEnabled(user.id, (enabled) => {
-                if (enabled) {
-                    this.realm.getLocation(username, function(location) {
-                        user.send(location);
-                    });
-                }
+        let tracking = this.realm.trackingEnabled(user.id, (enabled) => {
+            if (!enabled) return;
+
+            this.realm.getLocation(username, async function(location) {
+                let message = await user.send(location).catch((error) => { return; });
             });
-        }
+        });
     }
 
     /**
@@ -353,14 +405,16 @@ export class DiscordBot {
      * @param server the server entered
      * @param fame the amount of fame on the players character
      */
-    public callBaller(username: string, server: string, fame: number): void {
+    public callBaller(username: string, server: string, fame: number, classId: number): void {
 
         // #big-ballers
-        let channel = this.bot.channels.cache.get('725728505714966579');
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.high_fame);
+        let parsedFame = this.parseNumber(fame);
+        let className = RealmData.parseClass(classId);
     
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(`Big baller [**${username}**](https://realmeye.com/player/${username}) entered **${server}** nexus with ${fame} character fame`)
+            .setDescription(`Big baller [**${username}**](https://realmeye.com/player/${username}) entered **${server}** nexus with **${parsedFame}** fame on ${className}`)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -377,7 +431,7 @@ export class DiscordBot {
     public callKey(name: string, server: string, username: string): void {
 
         // #key-pops
-        let channel = this.bot.channels.cache.get('725694613893152828');
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.key_pops);
 
         let portalData = RealmData.getPortalData(name);
     
@@ -388,7 +442,9 @@ export class DiscordBot {
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
-        (channel as Discord.TextChannel).send('', { embed });
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending key pop notification: ${error}`, LogLevel.Warning);
+        });
     }
 
     /**
@@ -400,7 +456,7 @@ export class DiscordBot {
     public callGameManager(username: string, server: string): void {
         
         // #game-managers
-        let channel = this.bot.channels.cache.get('728599135242027131');
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.game_managers);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -408,7 +464,9 @@ export class DiscordBot {
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
-        (channel as Discord.TextChannel).send('', { embed });
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending game manager notification: ${error}`, LogLevel.Warning);
+        });
     }
 
     /**
@@ -420,8 +478,8 @@ export class DiscordBot {
     public callRichPlayer(username: string, gold: number): void {
      
         // #rich-niggas
-        let channel = this.bot.channels.cache.get('742818844933881888');
-        let parsedGold = gold.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.high_gold);
+        let parsedGold = this.parseNumber(gold);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -429,7 +487,9 @@ export class DiscordBot {
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
-        (channel as Discord.TextChannel).send('', { embed });
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending high gold notification: ${error}`, LogLevel.Warning);
+        });
     }
 
     /**
@@ -440,7 +500,7 @@ export class DiscordBot {
     public callInvalidName(username: string, accountId: string, server: string): void {
      
         // #invalid-names
-        let channel = this.bot.channels.cache.get('747426430027169902');
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.invalid_names);
         let encodedName = escape(username);
 
         const embed = new Discord.MessageEmbed()
@@ -449,7 +509,36 @@ export class DiscordBot {
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
-        (channel as Discord.TextChannel).send('', { embed });
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending invalid name notification: ${error}`, LogLevel.Warning);
+        });
+    }
+
+    /**
+     * called when a null name account is spotted
+     * 
+     * @param accountId the users account unique ID
+     * @param classType the ID of the class the player is on
+     * @param server the server the player was spotted in
+     */
+    public callNullName(player: PlayerData): void {
+
+        // #null-names
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.null_names);
+        let className = RealmData.parseClass(player.class);
+        let parsedFame = this.parseNumber(player.currentFame);
+        let parsedGold = this.parseNumber(player.gold);
+
+
+        const embed = new Discord.MessageEmbed()
+            .setColor(this.embedColor)
+            .setDescription(`Null name \`\`${className}\`\` spotted in ${player.server}\n\nAccount stars: \`\`${player.stars}\`\`\nAccount gold: \`\`${parsedGold}\`\`\nCharacter fame: \`\`${parsedFame}\`\``)
+            .setTimestamp()
+            .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
+    
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending null name notification: ${error}`, LogLevel.Warning);
+        });
     }
 
     /**
@@ -460,8 +549,8 @@ export class DiscordBot {
      */
     public callNameChange(previousName: string, newName: string): void {
      
-        // #invalid-names
-        let channel = this.bot.channels.cache.get('742468801311932468');
+        // #name-changes
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.name_changes);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -469,7 +558,20 @@ export class DiscordBot {
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
-        (channel as Discord.TextChannel).send('', { embed });
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending name change notification: ${error}`, LogLevel.Warning);
+        });
+    }
+
+    /**
+     * sent when a discord staff member is spotted entering a location
+     * 
+     * @param server the discord server running the raid
+     * @param username the staff member spotted
+     * @param location the location they were spotted in
+     */
+    public callDiscordStaff(server: string, username: string, location: string): void {
+
     }
     
     /**
@@ -479,52 +581,89 @@ export class DiscordBot {
      * @param usernames array of staff member usernames spotted
      * @param location the location of the raid
      */
-    public callDiscordRun(server: string, usernames: string[], location: string): void {
-        let discord = '';
-        let channel = '';
-        switch(server)
-        {
-            case 'divinty':
-                discord = 'Divinity';
-                channel = '756476045422624831';
-                break;
-            case 'dungeoneer':
-                discord = 'Dungeoneer';
-                channel = '756476065601421393';
-                break;
-            case 'sanctuary':
-                discord = 'Oryx Sanctuary';
-                channel = '756476095582306336';
-                break;
-            case 'pubhalls':
-                discord = 'Pub Halls';
-                channel = '756475912115060766';
-                break;
-            case 'shatters':
-                discord = 'Shatters';
-                channel = '756475933615063131';
-                break;
-            case 'fungal':
-                discord = 'Fungal Cavern';
-                channel = '756476159637717003';
-                break;
-            case 'sbc':
-                discord = 'Spooky Boi Central';
-                channel = '756475956545454151';
-                break;
-        }
+    public callDiscordRun(server: string, usernames: string[], location: string): void {       
+        let discordData = RealmData.parseDiscordServer(server);
         
         let staffAmount = usernames.length;
-        let description = `${staffAmount} ${discord} staff members were spotted in the same location: ${location}\n\n\`\`\``;
+        let description = `${staffAmount} ${discordData.name} staff members were spotted in the same location: \`${location}\`\n\n\`\`\``;
 
         for (let x = 0; x < staffAmount; x++) {
-            description = description + usernames[x];
+            description = description + usernames[x] + '\n';
         }
         description = description + '```';
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(``)
+            .setTitle('Raid detected')
+            .setDescription(description)
+            .setTimestamp()
+            .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
+
+        let serverChannel = this.bot.channels.cache.get(discordData.channel);
+
+        if (serverChannel) (serverChannel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending Discord raid notification: ${error}`, LogLevel.Warning);
+        });
+    }
+
+    public callStaffLocation(discordServer: string, username: string, server: string, location: string): void
+    {
+        let discordData = RealmData.parseDiscordServer(discordServer);
+        let message = "";
+        switch(location)
+        {
+            case 'left':
+                message = `**${username}** entered \`left bazaar\` in **${server}**`;
+                break;
+            case 'right':
+                message = `**${username}** entered \`right bazaar\` in **${server}**`;
+                break;
+            case 'realm':
+                message = `**${username}** entered a realm in **${server}**`;
+                break;
+        }
+
+        this.realm.addStaffLocation(discordServer, username, server, location, (result) => {
+            if (result !== null) {
+                let message = `${result.length} staff members spotted in same location\`\`\``;
+
+                message += result[0] + '\n';
+                result.forEach(element => {
+                    message += `${element}\n`;
+                });
+                message = message + `\`\`\`**\`\`\`${server} ${location}\`\`\`**`;
+
+                let embed = new Discord.MessageEmbed()
+                    .setColor(this.embedColor)
+                    .setTitle('Possible raid')
+                    .setDescription(message)
+                    .setTimestamp()
+                    .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
+                
+
+                let serverChannel = this.bot.channels.cache.get(discordData.channel);
+                if (serverChannel) (serverChannel as Discord.TextChannel).send(embed).catch((error) => {
+                    Logger.log('Discord', `Error sending Discord raid notification: ${error}`, LogLevel.Warning);
+                });
+
+                embed.setTitle(`Possible @${discordData.name} raid`);
+
+                let allChannel = this.bot.channels.cache.get(Constants.CHANNELS.all_raids);
+                if (allChannel) (allChannel as Discord.TextChannel).send(embed).catch((error) => {
+                    Logger.log('Discord', `Error sending Discord raid notification: ${error}`, LogLevel.Warning);
+                });
+            }
+        });
+
+        const embed = new Discord.MessageEmbed()
+            .setColor('#000000')
+            .setDescription(message)
+            .setTimestamp()
+
+        let serverChannel = this.bot.channels.cache.get(discordData.channel);
+        if (serverChannel) (serverChannel as Discord.TextChannel).send(embed).catch((error) => {
+            Logger.log('Discord', `Error sending Discord raid notification: ${error}`, LogLevel.Warning);
+        });
     }
 
     public sendMessage(message: string): void {
@@ -543,21 +682,19 @@ export class DiscordBot {
             .setColor(this.embedColor)
             .setAuthor('Command List', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128')
             .setDescription(
-                '\nThe current accepted commands from the bot:\n\n' +
+                '\n\n**WARNING:** Send all commands to the bot via private message, otherwise other members may be able to see your commands\n\n' +
                 '```diff\n' + 
                 '- !commands\n' +
                 '\tdisplay this message\n\n' +
-                '- !verify\n' + 
-                '\tverify yourself to use the bot\n\n' +
-                '- !realm Server RealmName\n' +
-                '\tget information about a realm including players, queue and IP\n\n' +
-                '- !track add PlayerName\n' + 
-                '\tadd a user to your tracked players (you will receive a message from the bot when this player is spotted)\n\n' + 
-                '- !track remove PlayerName\n' + 
+                '- !gold playername\n' +
+                '\tshow how much account gold a player has\n\n' +
+                '- !track add playername\n' + 
+                '\tadd a user to your tracked players\n\n' + 
+                '- !track remove playername\n' + 
                 '\tstop tracking a player\n\n' + 
                 '- !track toggle\n' +
                 '\tpause or resume tracking all players\n\n' +
-                '- !loc PlayerName\n' +
+                '- !loc playername\n' +
                 '\tget the last known location of a player\n\n```'
             )
             .setTimestamp()
@@ -565,43 +702,96 @@ export class DiscordBot {
 
         // send the message to #bot-commands
         if (!reply) {
-            let channel = this.bot.channels.cache.get('725042418251989064');
+            let channel = this.bot.channels.cache.get(Constants.CHANNELS.bot_commands);
 
-            if (channel) (channel as Discord.TextChannel).send('', { embed });
+            if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+                Logger.log('Discord', `Error sending the commands message: ${error}`, LogLevel.Warning);
+            });
             return;
         // send the message directly to a user
         } else if (message) {
-            message.author.send('', { embed });
+            message.author.send('', { embed }).catch((error) => { return; });
         }
     }
 
     /**
-     *  Send the welcome message to the #welcome channel
      * 
+     * @param mention 
      */
-    public sendWelcomeMessage(): void {
+    public sendReactionRoles(): void {
+        let channel = this.bot.channels.cache.get(Constants.CHANNELS.reaction_roles);
+        if (!channel) return;
 
-        // #welcome
-        let channel = this.bot.channels.cache.get('725692529814536255');
-    
-        const embed = new Discord.MessageEmbed()
+        let embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setAuthor('𝓦𝓮𝓵𝓬𝓸𝓶𝓮 𝓽𝓸 𝓡𝓮𝓪𝓵𝓶𝓢𝓹𝔂', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128')
-            .setDescription(
-                '\nThis is a private tracking discord for Realm of the Mad God\n\n' +
-                '**Features**\n\n' +
-                '```diff\n' +
-                '+ Track certain players entering the nexus, bazaars and realms\n' +
-                '+ Notify when waves of players enter any bazaars\n' +
-                '+ Track keys popped on every server\n' +
-                '+ Retrieve realm information including IP addresses\n\n'
-            )
-            .setThumbnail('https://static.drips.pw/rotmg/wiki/Enemies/Pentaract%20Eye.png')
-            .addField('\n\nWhat next?', '\n\nHead over to <#725042418251989064> or send **``!commands``** for a list of commands\n\n' +
-            'The bot will send you a PM and delete your message after every command\n\n')
-            .setFooter('created by him#1337', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
-    
-        if (channel) (channel as Discord.TextChannel).send('', { embed });
+            .setDescription('React/unreact if you want pings for **`Divinity`** runs');   
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♎');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor('#000000')
+            .setDescription('React/unreact if you want pings for **`Dungeoneer`** runs');   
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♐');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor(this.embedColor)
+            .setDescription('React/unreact if you want pings for **`Sanctuary`** runs');   
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♉');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor('#000000')
+            .setDescription('React/unreact if you want pings for **`SBC`** runs');   
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♊');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor(this.embedColor)
+            .setDescription('React/unreact if you want pings for **`Pub Halls`** runs');
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♋');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor('#000000')
+            .setDescription('React/unreact if you want pings for **`Shatters`** runs');   
+
+        (channel as Discord.TextChannel).send('', { embed })
+        .then((message) => {
+            message.react('♌');
+        })
+        .catch((error) => { return });
+
+        embed = new Discord.MessageEmbed()
+            .setColor(this.embedColor)
+            .setDescription('React/unreact if you want pings for **`Fungal`** runs');
+
+        (channel as Discord.TextChannel).send('', { embed })
+            .then((message) => {
+            message.react('♎');
+        })
+        .catch((error) => { return });
+
     }
 
     /**
@@ -623,6 +813,15 @@ export class DiscordBot {
             return user.id;
         }
     }
+
+    /**
+     *  Take a number and add the necessary commas
+     * 
+     * @param number to number to parse
+     */
+    public parseNumber(number: number): string {
+        return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
 }
 
 
@@ -633,7 +832,7 @@ export class DiscordBot {
 @Library ({
     name: 'backend functions',
     author: 'him#1337',
-    enabled: false
+    enabled: true
 })
 export class External {
 
@@ -645,48 +844,31 @@ export class External {
         });
     }
 
-    /**
-     *  Check if a user is verified to send commands to the bot
-     * 
-     * @param userId the users discord ID
-     * @param callback the result of the query (true/false)
-     */
-    public checkVerification(userId: string, callback: (result: boolean) => void): void {
-        this.redis.get(`verified:${userId}`, (error, reply) => {
-            if (reply !== null && reply == "true") {
-                callback(true);
+    public addStaffLocation(discordServer: string, username: string, server: string, location: string, callback: (result: string[]) => void)
+    {
+        let raidString = `${discordServer}:${server}:${location}`; 
+        let lowercaseUsername = username.toLowerCase();
+
+        this.redis.get(raidString, (error, reply) => {
+            if (reply == null) {
+                let usernames: string[] = [username]
+                this.redis.setex(raidString, 300, JSON.stringify(usernames));
+                callback(null);
             } else {
-                callback(false);
+                let usernames: string[] = JSON.parse(reply);
+                if (!usernames.includes(username)) {
+                    usernames.push(username);
+                    this.redis.setex(raidString, 120, JSON.stringify(usernames));
+                    if (usernames.length >= 2) {
+                        callback(usernames);
+                    }
+                }
+                
             }
         });
     }
 
-    /**
-     *  Verify a user to allow them to interact with the bot
-     * 
-     * @param userId the users discord ID
-     */
-    public addVerification(userId: string): void {
-        this.redis.set(`verified:${userId}`, 'true');
-    }
-
-    /**
-     *  Remove verification from a discord user
-     * 
-     * @param userId the users discord ID
-     * @param callback the result of the query (true/false)
-     */
-    public removeVerification(userId: string, callback: (result: boolean) => void): void {
-        this.checkVerification(userId, (result) => {
-            if (result) {
-                this.redis.set(`verified:${userId}`, 'false');
-                callback(true);
-            } else {
-                callback(false);
-            }
-        });
-    }
-
+    
     public addPortalInfo(server: string, realm: string, info: RealmData.Portal): void {
         let newServer = server.toLowerCase();
         let newRealm = realm.toLowerCase();
@@ -746,13 +928,16 @@ export class External {
     }
 
     public checkNameChange(userId: string, username: string, callback: (result: string) => void): void {
+        if (userId == undefined) callback(null);
+        if (userId == null) callback(null);
+        if (userId == "") callback(null);
         this.redis.get(`accountid:${userId}`, (error, reply) => {
-            if (reply !== null) {
-                this.redis.set(`accountid:${userId}`, username);
+            if (reply == null) {
+                this.redis.set(`accountid:${userId}`, `${username}`);
             } else {
                 if (username !== reply) {
                     callback(reply);
-                    this.redis.set(`accountid:${userId}`, username);
+                    this.redis.set(`accountid:${userId}`, `${username}`);
                 } else {
                     callback(null);
                 }
@@ -854,7 +1039,7 @@ export class External {
      * 
      * @param username the players ingame username
      * @param server the server the player was seen on
-     * @param type the type of area the player is in (nexus, bazaar, realm)
+     * @param type the type of area the player is in (nexus, bazaar, realm， vault, ghall)
      */
     public addLocation(username: string, server: string, type: string): void {
         let time = Date.now();
@@ -875,16 +1060,22 @@ export class External {
                 let time = moment(info[2], 'x').fromNow();
 
                 if(info[0] == 'nexus') {
-                    callback(`Player **\`\`${username}\`\`** was last seen in \`\`${server}\`\` nexus ${time}`);
+                    callback(`Player **\`\`${username}\`\`** was seen in \`\`${server}\`\` nexus ${time}`);
                     return;
                 } else if (info[0] == 'left') {
-                    callback(`Player **\`\`${username}\`\`** was last seen entering \`\`${server}\`\` left bazaar ${time}`);
+                    callback(`Player **\`\`${username}\`\`** was just seen entering \`\`${server}\`\` left bazaar ${time}`);
                     return;
                 } else if (info[0] == 'right') {
-                    callback(`Player **\`\`${username}\`\`** was last seen entering \`\`${server}\`\` right bazaar ${time}`);
+                    callback(`Player **\`\`${username}\`\`** was just seen entering \`\`${server}\`\` right bazaar ${time}`);
+                    return;
+                } else if (info[0] == 'vault') {
+                    callback(`Player **\`\`${username}\`\`** was seen entering their vault in \`\`${server}\`\` ${time}`);
+                    return;
+                } else if (info[0] == 'ghall') {
+                    callback(`Player **\`\`${username}\`\`** was seen entering their guild hall in \`\`${server}\`\` ${time}`);
                     return;
                 } else {
-                    callback(`Player **\`\`${username}\`\`** was last seen entering realm ${info[0]} in \`\`${server}\`\` ${time}`);
+                    callback(`Player **\`\`${username}\`\`** was seen entering realm ${info[0]} in \`\`${server}\`\` ${time}`);
                     return;
                 }
             } else {
@@ -960,25 +1151,5 @@ export class External {
                 callback(`Player **\`\`${username}\`\`** does not exist or has not been seen by the tracker yet`);
             }
         });
-    }
-
-    public logClients(clients: Client[]): void {
-        let newClient = JSON.stringify(clients);
-
-        this.redis.set('clients', newClient);
-    }
-
-    public getClients(callback: (clients: Client[]) => void): void {
-        this.redis.get('clients', (error, reply) => {
-            if (reply !== null) {
-                let clients = JSON.parse(reply);
-
-                callback(clients);
-            }
-        });
-    }
-
-    public logCommand(sender: string, command: string): void {
-        this.redis.lpush(`commands:${sender}`, command);
     }
   }
