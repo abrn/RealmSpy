@@ -216,66 +216,6 @@ export class DiscordBot {
     }
 
     /**
-     *  Handle the command !verify
-     * 
-     * @param message the discord message sent by the user
-     */
-    /* public handleVerifyCommand(message: Discord.Message): void {
-        // only allow users to verify via the #bot-commands channel
-        if (message.channel.type !== "text" || message.channel.id !== Constants.CHANNELS.bot_commands) {
-            message.author.send('Please send the verification command from the #bot-commands channel');
-            return;
-        }
-
-        this.realm.checkVerification(message.author.id, (result) => {
-            if (result) {
-                message.author.send('You are already verified!');
-            } else {
-                this.realm.addVerification(message.author.id);
-                message.author.send('You have been verified to use the bot, thanks!');
-            }
-        });
-    } */
-
-    /**
-     *  Handle the command !unverify
-     * 
-     * @param message the discord message sent by the user
-     * @param args the parsed arguments from the discord message
-     */
-    /* public handleUnverifyCommand(message: Discord.Message, args: string[]): void {
-        // only allow users to send the command via the #bot-commands channel
-        if (message.channel.type !== "text" || message.channel.id !== Constants.CHANNELS.bot_commands) {
-            message.author.send('Please send the unverify command from the #bot-commands channel');
-            return;
-        }
-
-        // check if the user has the admin or security role
-        if (message.member.roles.cache.has('725690972662530048') || message.member.roles.cache.has('725691652630380555')) {
-            if (!args[0]) {
-                message.author.send('Please mention a user to unverify: **``!unverify @userhere``**');
-                return;
-            }
-            let idRegex = new RegExp("^[0-9]{18}$");
-            if (!args[0].match(idRegex)) {
-                message.author.send('Please enter a valid discord user ID, e.g: **``!unverify 146395651255566336``**');
-                return;
-            }
-
-            this.realm.removeVerification(args[0], (result) => {
-                if (result) {
-                    message.author.send(`Verification has been removed from ${args[0]}`);
-                } else {
-                    message.author.send(`User ${args[0]} does not have verification status`);
-                }
-            });
-        } else {
-            message.author.send('You need to be an Admin or Security to send this command');
-            return;
-        }
-    } */
-
-    /**
      *  Handle the command !realm
      * 
      * @param message the discord message sent by a user
@@ -461,6 +401,30 @@ export class DiscordBot {
     }
 
     /**
+     * Called when a players gold increases
+     * 
+     * @param player PlayerData
+     * @param oldGold the account gold before the purchase
+     */
+    public callGoldPurchase(player: PlayerData, oldGold: number): void {
+        let channel = this.bot.channels.cache.get(Constants.Channels.gold_purchases);
+        let username = player.name;
+        let newGold = RealmData.parseNumber(player.gold);
+        let parsedGold = RealmData.parseNumber(oldGold);
+        let difference = RealmData.parseNumber(player.gold - oldGold);
+
+        const embed = new Discord.MessageEmbed()
+        .setColor(this.embedColor)
+        .setDescription(`Player [**${username}**](https://realmeye.com/player/${username}) just purchased **${difference}** gold\n\nOld amount: \`${parsedGold}\`\nNew amount: \`${newGold}\``)
+        .setTimestamp()
+        .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
+
+        if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
+            Logger.log('Discord', `Error sending gold purchase notification: ${error}`, LogLevel.Warning);
+        });
+    }
+
+    /**
      * Sends a message when a player with an invalid (non-alpha) name is spotted
      * 
      * @param player PlayerData
@@ -631,10 +595,6 @@ export class DiscordBot {
         });
     }
 
-    public callGoldPurchase(player: PlayerData) {
-        
-    }
-
     /**
      *  Sends a message with the list of accepted commands
      * 
@@ -645,21 +605,22 @@ export class DiscordBot {
         
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setAuthor('Command List', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128')
+            .setAuthor('Command list', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128')
             .setDescription(
-                '\n\n**WARNING:** Send all commands to the bot via private message, otherwise other members may be able to see your commands\n\n' +
+                '\n\n**SEND ALL COMMANDS TO THE BOT VIA PRIVATE MESSAGE\n' +
                 '```diff\n' + 
-                '- !commands\n' +
+                '+ !commands\n' +
                 '\tdisplay this message\n\n' +
-                '- !gold playername\n' +
+                '+ !gold playername\n' +
                 '\tshow how much account gold a player has\n\n' +
-                '- !track add playername\n' + 
+                '+ !track add playername\n' + 
                 '\tadd a user to your tracked players\n\n' + 
-                '- !track remove playername\n' + 
+                '+ !track remove playername\n' + 
                 '\tstop tracking a player\n\n' + 
-                '- !track toggle\n' +
+                '+ !track toggle\n' +
                 '\tpause or resume tracking all players\n\n' +
-                '- !loc playername\n' +
+                '+ !loc playername\n' +
+                '+ !location playername\n' +
                 '\tget the last known location of a player\n\n```'
             )
             .setTimestamp()
@@ -808,6 +769,7 @@ export class External {
         if (userId == undefined) callback(null);
         if (userId == null) callback(null);
         if (userId == "") callback(null);
+
         this.redis.get(`accountid:${userId}`, (error, reply) => {
             if (reply == null) {
                 this.redis.set(`accountid:${userId}`, `${username}`);
@@ -1006,19 +968,21 @@ export class External {
      * 
      * @param player PlayerData
      */
-    public checkGold(player: PlayerData): void {
+    public checkGold(player: PlayerData, callback: (player: PlayerData, oldGold) => void): void {
         let lowerUsername = player.name.toLowerCase();
 
         this.redis.get(`gold:${lowerUsername}`, (error, reply) => {
             if (reply !== null) {
                 let parsedGold = parseInt(reply);
                 // check for a gold increase
-                if (parsedGold < player.gold) {
-                    
+                let difference = player.gold - parsedGold;
+                if (parsedGold < player.gold && difference >= 500) {
+                    callback(player, parsedGold);
+                    return;
                 }
             }
+            callback(null, null);
         });
-
         this.redis.set(`gold:${lowerUsername}`, player.gold.toString());
     }
 
