@@ -1,15 +1,10 @@
-import { 
-  Client, Library, Logger, LogLevel, Runtime,
-  PacketHook, TextPacket, UpdatePacket, 
-  UsePortalPacket, WorldPosData, MapInfoPacket, NewTickPacket, EscapePacket, LoadPacket, PlayerTextPacket, PlayerData
-} from 'nrelay';
+import { Client, Library, Runtime, PacketHook, TextPacket, PlayerData } from 'nrelay';
 
 import { PlayerTracker } from 'nrelay/lib/stdlib/player-tracker';
 import * as RealmData from './modules/realm-data';
 
 // discord bot requirements
 import { DiscordBot, External } from './modules/discord';
-import { Database } from './modules/database';
 
 @Library({
   name: 'RealmSpy plugin',
@@ -21,23 +16,6 @@ class RealmSpy {
   private runtime: Runtime;
   private bot = new DiscordBot();
   private external = new External();
-  private portals: RealmData.Portals;
-  //private database: Database;
-
-  onPortal: {
-    [guid: string]: boolean
-  };
-  currentServer: {
-    [guid: string]: string
-  };
-  serverName: {
-    [guid: string]: string
-  };
-  ongoingRaids: {
-    [server: string]: RealmData.Raid[];
-  }
-  currentIP: string;
-  currentPortal: number;
 
   /**
    * Called when a client changes area (i.e enters a realm or loads into nexus)
@@ -174,17 +152,6 @@ class RealmSpy {
    */
   constructor(playerTracker: PlayerTracker, runtime: Runtime, external: External) 
   {
-    this.portals = {};
-    this.currentServer = {};
-    this.onPortal = {};
-    this.ongoingRaids = {};
-
-    this.ongoingRaids['pubhalls'] = [];
-    this.ongoingRaids['divinity'] = [];
-    this.ongoingRaids['dungeoneer'] = [];
-    this.ongoingRaids['sanctuary'] = [];
-    this.ongoingRaids['sbc'] = [];
-
     //this.database = new Database();
     this.runtime = runtime;
 
@@ -205,17 +172,14 @@ class RealmSpy {
       }
 
       // track name changes
-      //external.checkNameChange(player.accountId, player.name, (result) => {
-        //if (result !== null) {
-          //this.bot.callNameChange(result, player.name);
-        //}
-      //})
+      external.checkNameChange(player.accountId, player.name, (result) => {
+        if (result !== null) {
+          this.bot.callNameChange(result, player.name);
+        }
+      });
 
       // add a new last known location
       external.addLocation(player.name, player.server, 'nexus');
-
-      //this.database.insertLocation(player, 'nexus');
-      //this.database.addPlayer(player);
 
       // check if anyone is tracking the player
       external.getTrackers(player.name, (trackers) => {
@@ -342,18 +306,5 @@ class RealmSpy {
         this.bot.callStaffLocation('dungeoneer', player.name, player.server, location);
       }
     }
-  }
-
-  public getFlooredPos(client: Client): WorldPosData {
-    const clientPos = new WorldPosData(
-      Math.floor(client.worldPos.x),
-      Math.floor(client.worldPos.y)
-    );
-
-    return clientPos;
-  }
-
-  public sleep(time: number) {
-    return new Promise((resolve) => setTimeout(resolve, time));
   }
 }
