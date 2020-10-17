@@ -5,7 +5,6 @@ import moment = require('moment');
 import Redis = require('redis');
 
 import { Library, Logger, LogLevel, PlayerData } from 'nrelay';
-import { Database } from './database';
 
 import * as Discord from 'discord.js';
 import * as RealmData from './realm-data';
@@ -41,27 +40,6 @@ export class DiscordBot {
             Logger.log('Discord', `Error: ${error}`, LogLevel.Error);
         });
 
-        this.bot.on('messageReactionAdd', (message, user) => {
-            if (message.message.channel.id !== Constants.CHANNELS.reaction_roles) return;
-
-            let roleName = '';
-            switch(message.emoji.id)
-            {
-                case '763938988893011988': roleName = 'Divinity'; break;
-                case '763938989643530251': roleName = 'Dungeoneer'; break;
-                case '763938990524989551': roleName = 'Sanctuary'; break;
-                case '763938991208661003': roleName = 'SBC'; break;
-                case '763938992185802772': roleName = 'Pub Halls'; break;
-                case '763939015895547954': roleName = 'Shatters'; break;
-                case '763939016810037328': roleName = 'Fungal'; break;
-                default: return;
-            }
-            let guild = this.bot.guilds.cache.get('725042340959617134');
-            let member = guild.members.cache.get(user.id);
-            let role = guild.roles.cache.find(r => r.name == roleName);
-            if (member && role) member.roles.add(role);
-        });
-
         this.bot.on('message', message => {
             // check if the bot is ready before handling commands
             if (!this.ready) {
@@ -71,7 +49,7 @@ export class DiscordBot {
             }
 
             // delete all non-commands in #bot-commands
-            if (message.channel.id == Constants.CHANNELS.bot_commands && !message.content.startsWith(prefix) && !message.author.bot) {
+            if (message.channel.id == Constants.Channels.bot_commands && !message.content.startsWith(prefix) && !message.author.bot) {
                 message.delete();
                 return;
             }
@@ -113,9 +91,6 @@ export class DiscordBot {
                     break;
                 case 'realm':
                     this.handleRealmCommand(message, args);
-                    break;
-                case 'sendreactions':
-                    this.sendReactionRoles();
                     break;
                 default:
                     author.send('Command not found.. please send **``!commands``** for a list of commands');
@@ -401,20 +376,16 @@ export class DiscordBot {
     /**
      *  Send a channel message when a player with 25k+ fame enters a nexus
      * 
-     * @param username the username of the player
-     * @param server the server entered
-     * @param fame the amount of fame on the players character
+     * @param player PlayerData
      */
-    public callBaller(username: string, server: string, fame: number, classId: number): void {
-
-        // #big-ballers
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.high_fame);
-        let parsedFame = this.parseNumber(fame);
-        let className = RealmData.parseClass(classId);
+    public callBaller(player: PlayerData): void {
+        let channel = this.bot.channels.cache.get(Constants.Channels.high_fame);
+        let parsedFame = RealmData.parseNumber(player.currentFame);
+        let className = RealmData.parseClass(player.class);
     
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(`Big baller [**${username}**](https://realmeye.com/player/${username}) entered **${server}** nexus with **${parsedFame}** fame on ${className}`)
+            .setDescription(`Big baller [**${player.name}**](https://realmeye.com/player/${player.name}) entered **${player.server}** nexus with **${parsedFame}** fame on ${className}`)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -429,16 +400,13 @@ export class DiscordBot {
      * @param username the key poppers username
      */
     public callKey(name: string, server: string, username: string): void {
-
-        // #key-pops
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.key_pops);
-
+        let channel = this.bot.channels.cache.get(Constants.Channels.key_pops);
         let portalData = RealmData.getPortalData(name);
     
         const embed = new Discord.MessageEmbed()
             .setColor(portalData.color)
             .setThumbnail(portalData.image)
-            .setDescription(`**${name}** opened in ${server} nexus by ${username}`)
+            .setDescription(`**${name}** opened in **${server}** nexus by ${username}`)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -448,19 +416,21 @@ export class DiscordBot {
     }
 
     /**
-     * called when a game manager enters the nexus
+     * Called when a game manager enters the nexus
      * 
-     * @param username the username of the gm
-     * @param server the server the player entered
+     * @param player PlayerData
      */
-    public callGameManager(username: string, server: string): void {
-        
-        // #game-managers
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.game_managers);
+    public callGameManager(player: PlayerData): void {
+        let channel = this.bot.channels.cache.get(Constants.Channels.game_managers);
+
+        let username = player.name;
+        let server = player.server;
+        let gold = RealmData.parseNumber(player.gold);
+        let className = RealmData.parseClass(player.class);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(`Game manager [**${username}**](https://realmeye.com/player/${username}) entered **${server}** nexus`)
+            .setDescription(`Game manager [**${player.name}**](https://realmeye.com/player/${player.name}) entered **${player.server}** nexus on ${className}\n\nAccount gold: \`${gold}\``)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -470,16 +440,14 @@ export class DiscordBot {
     }
 
     /**
-     * called when a rich player enters the nexus
+     * Called when a player with a high amount of gold is spotted entering a nexus
      * 
      * @param username the username of the gm
      * @param gold the amount of gold the player has
      */
     public callRichPlayer(username: string, gold: number): void {
-     
-        // #rich-niggas
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.high_gold);
-        let parsedGold = this.parseNumber(gold);
+        let channel = this.bot.channels.cache.get(Constants.Channels.high_gold);
+        let parsedGold = RealmData.parseNumber(gold);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -493,19 +461,21 @@ export class DiscordBot {
     }
 
     /**
-     * called when a player with an invalid )non-alpha) name is spotted
+     * Sends a message when a player with an invalid (non-alpha) name is spotted
      * 
-     * @param username the username of the player
+     * @param player PlayerData
      */
-    public callInvalidName(username: string, accountId: string, server: string): void {
+    public callInvalidName(player: PlayerData): void {
      
         // #invalid-names
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.invalid_names);
-        let encodedName = escape(username);
+        let channel = this.bot.channels.cache.get(Constants.Channels.invalid_names);
+        let parsedClass = RealmData.parseClass(player.class);
+        let parsedGold = RealmData.parseNumber(player.gold);
+        let parsedFame = RealmData.parseNumber(player.accountFame);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(`Player \`\`${username}\`\` was spotted in ${server}\n\nAccount ID: \`\`${accountId}\`\`\n\nEncoded string: \`\`${encodedName}\`\``)
+            .setDescription(`Player \`\`${player.name}\`\` was spotted in **${player.server}** nexus\n\nClass: \`\`${parsedClass}\`\`\n\nGold: \`\`${parsedGold}\`\`\n\nCharacter fame: \`\`${parsedFame}\`\``)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -515,19 +485,17 @@ export class DiscordBot {
     }
 
     /**
-     * called when a null name account is spotted
+     * Called when a null name account is spotted (now deprecated since the method is patched)
      * 
-     * @param accountId the users account unique ID
-     * @param classType the ID of the class the player is on
-     * @param server the server the player was spotted in
+     * @param player PlayerData
      */
     public callNullName(player: PlayerData): void {
 
         // #null-names
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.null_names);
+        let channel = this.bot.channels.cache.get(Constants.Channels.null_names);
         let className = RealmData.parseClass(player.class);
-        let parsedFame = this.parseNumber(player.currentFame);
-        let parsedGold = this.parseNumber(player.gold);
+        let parsedFame = RealmData.parseNumber(player.currentFame);
+        let parsedGold = RealmData.parseNumber(player.gold);
 
 
         const embed = new Discord.MessageEmbed()
@@ -542,7 +510,7 @@ export class DiscordBot {
     }
 
     /**
-     * called when a player has changed their username
+     * Sends a message when a player is spotted changing their username
      * 
      * @param previousName the player's previous username
      * @param newName the player's new username
@@ -550,7 +518,7 @@ export class DiscordBot {
     public callNameChange(previousName: string, newName: string): void {
      
         // #name-changes
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.name_changes);
+        let channel = this.bot.channels.cache.get(Constants.Channels.name_changes);
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -562,20 +530,9 @@ export class DiscordBot {
             Logger.log('Discord', `Error sending name change notification: ${error}`, LogLevel.Warning);
         });
     }
-
-    /**
-     * sent when a discord staff member is spotted entering a location
-     * 
-     * @param server the discord server running the raid
-     * @param username the staff member spotted
-     * @param location the location they were spotted in
-     */
-    public callDiscordStaff(server: string, username: string, location: string): void {
-
-    }
     
     /**
-     * sent when a discord raid is found in a location
+     * Sends a message when a possible discord raid is spotted in a location
      * 
      * @param server the discord server running the raid
      * @param usernames array of staff member usernames spotted
@@ -606,6 +563,14 @@ export class DiscordBot {
         });
     }
 
+    /**
+     * Sends a message when a staff member is spotted entering a location
+     * 
+     * @param discordServer the discord server of the raid
+     * @param username the staff members username
+     * @param server the ingame server 
+     * @param location the location of the staff member
+     */
     public callStaffLocation(discordServer: string, username: string, server: string, location: string): void
     {
         let discordData = RealmData.parseDiscordServer(discordServer);
@@ -648,7 +613,7 @@ export class DiscordBot {
 
                 embed.setTitle(`Possible @${discordData.name} raid`);
 
-                let allChannel = this.bot.channels.cache.get(Constants.CHANNELS.all_raids);
+                let allChannel = this.bot.channels.cache.get(Constants.Channels.all_raids);
                 if (allChannel) (allChannel as Discord.TextChannel).send(embed).catch((error) => {
                     Logger.log('Discord', `Error sending Discord raid notification: ${error}`, LogLevel.Warning);
                 });
@@ -666,7 +631,7 @@ export class DiscordBot {
         });
     }
 
-    public sendMessage(message: string): void {
+    public callGoldPurchase(player: PlayerData) {
         
     }
 
@@ -702,7 +667,7 @@ export class DiscordBot {
 
         // send the message to #bot-commands
         if (!reply) {
-            let channel = this.bot.channels.cache.get(Constants.CHANNELS.bot_commands);
+            let channel = this.bot.channels.cache.get(Constants.Channels.bot_commands);
 
             if (channel) (channel as Discord.TextChannel).send('', { embed }).catch((error) => {
                 Logger.log('Discord', `Error sending the commands message: ${error}`, LogLevel.Warning);
@@ -714,85 +679,6 @@ export class DiscordBot {
         }
     }
 
-    /**
-     * 
-     * @param mention 
-     */
-    public sendReactionRoles(): void {
-        let channel = this.bot.channels.cache.get(Constants.CHANNELS.reaction_roles);
-        if (!channel) return;
-
-        let embed = new Discord.MessageEmbed()
-            .setColor(this.embedColor)
-            .setDescription('React/unreact if you want pings for **`Divinity`** runs');   
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♎');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor('#000000')
-            .setDescription('React/unreact if you want pings for **`Dungeoneer`** runs');   
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♐');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor(this.embedColor)
-            .setDescription('React/unreact if you want pings for **`Sanctuary`** runs');   
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♉');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor('#000000')
-            .setDescription('React/unreact if you want pings for **`SBC`** runs');   
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♊');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor(this.embedColor)
-            .setDescription('React/unreact if you want pings for **`Pub Halls`** runs');
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♋');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor('#000000')
-            .setDescription('React/unreact if you want pings for **`Shatters`** runs');   
-
-        (channel as Discord.TextChannel).send('', { embed })
-        .then((message) => {
-            message.react('♌');
-        })
-        .catch((error) => { return });
-
-        embed = new Discord.MessageEmbed()
-            .setColor(this.embedColor)
-            .setDescription('React/unreact if you want pings for **`Fungal`** runs');
-
-        (channel as Discord.TextChannel).send('', { embed })
-            .then((message) => {
-            message.react('♎');
-        })
-        .catch((error) => { return });
-
-    }
 
     /**
      *  Parse a mention from a message and return the user ID
@@ -812,15 +698,6 @@ export class DiscordBot {
             let user = this.bot.users.cache.get(mention);
             return user.id;
         }
-    }
-
-    /**
-     *  Take a number and add the necessary commas
-     * 
-     * @param number to number to parse
-     */
-    public parseNumber(number: number): string {
-        return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     }
 }
 
@@ -1039,7 +916,7 @@ export class External {
      * 
      * @param username the players ingame username
      * @param server the server the player was seen on
-     * @param type the type of area the player is in (nexus, bazaar, realm， vault, ghall)
+     * @param type the type of area the player is in (nexus, bazaar, realm，vault, ghall)
      */
     public addLocation(username: string, server: string, type: string): void {
         let time = Date.now();
@@ -1075,7 +952,7 @@ export class External {
                     callback(`Player **\`\`${username}\`\`** was seen entering their guild hall in \`\`${server}\`\` ${time}`);
                     return;
                 } else {
-                    callback(`Player **\`\`${username}\`\`** was seen entering realm ${info[0]} in \`\`${server}\`\` ${time}`);
+                    callback(`Player **\`\`${username}\`\`** was seen entering a realm in \`\`${server}\`\` ${time}`);
                     return;
                 }
             } else {
@@ -1125,14 +1002,24 @@ export class External {
     }
 
     /**
-     *  Log the account gold amount of a user
+     *  Log the account gold of a user and check for any gold purchases
      * 
-     * @param username 
-     * @param gold 
+     * @param player PlayerData
      */
-    public logGold(username: string, gold: number): void {
-        let lowerUsername = username.toLowerCase();
-        this.redis.set(`gold:${lowerUsername}`, gold.toString());
+    public checkGold(player: PlayerData): void {
+        let lowerUsername = player.name.toLowerCase();
+
+        this.redis.get(`gold:${lowerUsername}`, (error, reply) => {
+            if (reply !== null) {
+                let parsedGold = parseInt(reply);
+                // check for a gold increase
+                if (parsedGold < player.gold) {
+                    
+                }
+            }
+        });
+
+        this.redis.set(`gold:${lowerUsername}`, player.gold.toString());
     }
 
     /**
