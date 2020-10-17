@@ -1,4 +1,4 @@
-import { Client, Library, Runtime, PacketHook, TextPacket, PlayerData } from 'nrelay';
+import { Client, Library, Runtime, PacketHook, TextPacket, PlayerData, PlaySoundPacket } from 'nrelay';
 
 import { PlayerTracker } from 'nrelay/lib/stdlib/player-tracker';
 import * as RealmData from './modules/realm-data';
@@ -167,16 +167,9 @@ class RealmSpy {
       // track invalid names
       let alphaRegex = /^[A-z]+$/g;
       if (!player.name.match(alphaRegex)) {
-        this.bot.callInvalidName(player.name, player.accountId, player.server)
+        this.bot.callInvalidName(player)
         return;
       }
-
-      // track name changes
-      external.checkNameChange(player.accountId, player.name, (result) => {
-        if (result !== null) {
-          this.bot.callNameChange(result, player.name);
-        }
-      });
 
       // add a new last known location
       external.addLocation(player.name, player.server, 'nexus');
@@ -190,12 +183,16 @@ class RealmSpy {
         }
       });
 
-      // log player gold
-      external.logGold(player.name, player.gold);
+      // log player gold and check for any gold purchases
+      external.checkGold(player, (playerData, oldGold) => {
+        if (playerData !== null) {
+          this.bot.callGoldPurchase(playerData, oldGold);
+        }
+      });
 
       // track big ballers
       if (player.currentFame > 25000) {
-        this.bot.callBaller(player.name, player.server, player.currentFame, player.class);
+        this.bot.callBaller(player);
       }
 
       // track rich players
@@ -205,9 +202,8 @@ class RealmSpy {
 
       // track game managers
       if (RealmData.gmNames.includes(player.name) || player.guildName == "DecaGMs") {
-        // exclude mreyeball as he spams the channel
         if (player.name !== "MrEyeball") {
-          this.bot.callGameManager(player.name, player.server);
+          this.bot.callGameManager(player);
         }
       }
     });
@@ -220,12 +216,12 @@ class RealmSpy {
 
       if (RealmData.defaultNames.includes(player.name)) return;
 
-      if (!player.accountId == undefined && player.accountId !== "") {
-        this.external.checkNameChange(player.accountId, player.name, (result) => {
-          if (result == null) return;
+      // track name changes
+      external.checkNameChange(player.accountId, player.name, (result) => {
+        if (result !== null) {
           this.bot.callNameChange(result, player.name);
-        })
-      }
+        }
+      });
 
       let area: string = '';
       let px: number = player.worldPos.x;
