@@ -1,4 +1,4 @@
-export const CHANNELS = {
+export const Channels = {
     bot_commands: "725042418251989064",
     key_pops: "725694613893152828",
     invalid_names: "747426430027169902",
@@ -7,7 +7,17 @@ export const CHANNELS = {
     game_managers: "728599135242027131",
     high_fame: "725728505714966579",
     high_gold: "742818844933881888",
-    gold_purchases: "",
+    gold_purchases: "766973688468733964",
+    reaction_roles: "763727911177027586",
+
+
     all_raids: "763388159857262592",
-    reaction_roles: "763727911177027586"
+    oryx_sanctuary: "756476095582306336",
+    dungeoneer: "756476065601421393",
+    divinity: "756476045422624831",
+    pubhalls: "756475912115060766",
+    shatters: "756475933615063131",
+    fungal: "756476159637717003",
+    sbc: "756475956545454151"
 }
+
