@@ -1,4 +1,6 @@
+import { Constants } from 'discord.js';
 import { WorldPosData } from 'nrelay';
+import { Channels } from './constants';
 
 export interface Portal {
     position: WorldPosData,
@@ -113,7 +115,10 @@ export let fungalStaff: Array<string> = ["deatttthhh", "nyyx", "waffleswuf", "ca
 export let shattersStaff: Array<string> = ["zariky", "febelmeste", "brillo", "heisme", "nyyx", "whaleparty", "kyeopta", "mari", "clash", 
     "dlajdiuawh", "heavydk", "oofg", "someonelol", "hippei", "leveltwent", "hokieman", "connoreer", "aceaid", "hipnosis", "ooops", "rglking", 
     "slodiiiiii", "hiwizardao", "oooshie", "trigplanar", "nottrig", "kinkypink", "pinkerjoe", "discrie", "allegation", "blizzardha", "hihihs", 
-    "swiftywowz", "wook", "jumpybug", "ybysduzfdy", "mag", "johndw"]
+    "swiftywowz", "wook", "jumpybug", "ybysduzfdy", "mag", "johndw", "bisque", "hjck", "cubefrost", "oec", "gamecloud", "fliplord", "aidanqa",
+    "ikage", "prqtt", "yukiae", "joshuamoot", "allegations", "catalyze", "ultrabeast", "ybysduzfdy", "kimihiro", "naplays", "voidxgamer",
+    "twimlam", "wesleyewal", "dekto", "bigboyjimm", "botmarian", "mysticbob", "tenner", "kinkypinky", "pinkerjoe", "manaphy", "dayqpi", "keppeh",
+    ""]
 
 export enum serverEnum {
     usw4 = "uswest4",       usw3 = "uswest3",       usw2 = "uswest2",   usw = "uswest",
@@ -193,36 +198,50 @@ export function parseServer(server: string): string {
     }
 }
 
+/**
+ * Take a number and add commas to increase readability
+ * 
+ * @param number 
+ */
+export function parseNumber(number: number): string {
+    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/**
+ * Enum for returning human readable discord server names and their channel ID
+ * 
+ * @param name the name of the discord server
+ */
 export function parseDiscordServer(name: string): {name: string, channel: string} {
     switch(name)
         {
             case 'divinty': return {
                 name: 'Divinity',
-                channel: '756476045422624831'
+                channel: Channels.divinity
             };
             case 'dungeoneer': return {
                 name: 'Dungeoneer',
-                channel: '756476065601421393'
+                channel: Channels.dungeoneer
             };
             case 'sanctuary': return {
                 name: 'Oryx Sanctuary',
-                channel: '756476095582306336'
+                channel: Channels.oryx_sanctuary
             };
             case 'pubhalls': return {
                 name: 'Pub Halls',
-                channel: '756475912115060766'
+                channel: Channels.pubhalls
             };
             case 'shatters': return {
                 name: 'Shatters',
-                channel: '756475933615063131'
+                channel: Channels.shatters
             };
             case 'fungal': return {
                 name: 'Fungal Cavern',
-                channel: '756476159637717003'
+                channel: Channels.fungal
             };
             case 'sbc': return {
                 name: 'SBC',
-                channel: '756475956545454151'
+                channel: Channels.sbc
             };
         }
 }
@@ -680,6 +699,11 @@ export function getPortalData(dungeon: string): PortalResponse {
             return {
                 color: "#A69660",
                 image: "https://i.imgur.com/d7MSK2x.png"
+            }
+        case 'High Tech Terror':
+            return {
+                color: "#1095FF",
+                image: "https://i.imgur.com/h7xPlrS.gif"
             }
         default:
             return {
