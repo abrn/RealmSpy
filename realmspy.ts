@@ -1,306 +1,296 @@
-import { Client, Library, Runtime, PacketHook, TextPacket, PlayerData, PlaySoundPacket } from 'nrelay';
+import {
+  Client,
+  Library,
+  Runtime,
+  PacketHook,
+  TextPacket,
+  PlayerData
+} from "nrelay";
 
-import { PlayerTracker } from 'nrelay/lib/stdlib/player-tracker';
-import * as RealmData from './modules/realm-data';
+import { PlayerTracker } from "nrelay/lib/stdlib/player-tracker";
+import * as RealmData from "./modules/realm-data";
 
-// discord bot requirements
-import { DiscordBot, External } from './modules/discord';
+/**
+ * Import the Discord bot functions
+ * Import the Redis database functions
+ */
+import { DiscordBot, External } from "./modules/discord";
+import { Database } from "./modules/database";
 
 @Library({
-  name: 'RealmSpy plugin',
-  author: 'him#1337',
-  enabled: true
+  name: "RealmSpy plugin",
+  author: "him#1337",
+  enabled: true,
 })
-
 class RealmSpy {
   private runtime: Runtime;
   private bot = new DiscordBot();
   private external = new External();
+  private alphaRegex = /^[A-z]+$/g;
+  //private database = new Database();
 
   /**
-   * Called when a client changes area (i.e enters a realm or loads into nexus)
-   * 
-   * @param client the client that received the packet
-   * @param mapPacket the details of the MapInfo packet
-   */
-  /* @PacketHook()
-  onMapInfo(client: Client, mapPacket: MapInfoPacket): void
-  {
-    if (client.canEnterRealm() && mapPacket.name == "Nexus") {
-      setTimeout(() => {
-        if (!client.worldPos) {
-          client.connectToServer({name:"Nexus",address:client.server.address});
-          return;
-        } else {
-          client.findPath(new WorldPosData(106, 130));
-        }
-
-        setTimeout(() => {
-          if (!this.currentServer[client.guid]) {
-            this.currentServer[client.guid] = client.server.name;
-          }
-          let serverLower = this.currentServer[client.guid].toLowerCase();
-
-          if (!this.portals[serverLower] || this.portals[serverLower].length == 0) {
-            client.connectToServer({name:"Nexus",address:client.server.address});
-            return;
-          }
-          let randomPortals = this.shuffle(this.portals[serverLower]);
-          let nextPortal = randomPortals[0];
-        
-          client.findPath(nextPortal.position);
-
-          setTimeout(() => {
-            this.portalID[client.guid] = nextPortal.id;
-            this.onPortal[client.guid] = true;
-
-            this.portals[serverLower].splice(0);
-          }, 10000);
-        }, 30000);
-      }, 5000);
-    } else if (mapPacket.name == "Realm of the Mad God") {
-      let ip = client.server.address;
-      let realm = mapPacket.realmName.substring(12);
-      this.onPortal[client.guid] = false;
-
-      this.external.addPortalIP(this.currentServer[client.guid], realm, ip);
-      
-      setTimeout(() => {
-        let escape = new EscapePacket();
-        client.io.send(escape);
-      }, 10000);
-    }
-  } */
-
-
-  /* @PacketHook()
-  async onUpdate(client: Client, updatePacket: UpdatePacket): Promise<void> 
-  {
-    if (client.canEnterRealm()) {
-
-      if (this.onPortal[client.guid]) {
-        let packet = new UsePortalPacket();
-        packet.objectId = this.portalID[client.guid];
-
-        client.io.send(packet);
-      }
-
-      updatePacket.newObjects.forEach(newObj => 
-      {
-        if (newObj.objectType == 1810) {
-          newObj.status.stats.forEach(data => 
-          {
-            if (data.stringStatValue !== "") {
-              const pattern = new RegExp('(\\w+)\\s\\((\\d+)(?:\\/\\d+\\)\\s\\(\\+(\\d+))?');
-              let matches = data.stringStatValue.match(pattern);
-
-              let server = (!this.currentServer[client.guid]) ? client.server.name : this.currentServer[client.guid]
-              let serverLower = server.toLowerCase();
-
-              let newPortal: RealmData.Portal = {
-                position: newObj.status.pos,
-                id: newObj.status.objectId,
-                name: matches[1],
-                server: server,
-                players: parseInt(matches[2]),
-                queue: (matches[3]) ? parseInt(matches[3]) : 0,
-                time: Date.now(),
-                ip: null
-              }
-              
-              this.external.addPortalInfo(serverLower, matches[1].toLowerCase(), newPortal);
-
-              if (!this.portals[serverLower]) {
-                this.portals[serverLower] = [];
-              }
-              this.portals[serverLower].push(newPortal);
-  
-              //Logger.log('Pathfinder', `Found new portal: ${server} ${newPortal.name} with ${newPortal.players}/85 players.. Queue: ${newPortal.queue}, Object ID: ${newPortal.id}`, LogLevel.Warning);
-            }
-          });
-        }
-      });
-    }
-  } */
-
-
-  /**
-   *  Called when a text packet is received by a client - used to track key pops or event notifications
-   * 
+   * Called when a text packet is received by a client
+   * Used to track key pops or event notifications
+   *
    * @param client the client that received the packet
    * @param textPacket the data from the text packet
    */
   @PacketHook()
-  onText(client: Client, textPacket: TextPacket): void 
-  {
+  onText(client: Client, textPacket: TextPacket): void {
     if (client.mapInfo.name === "Nexus") {
-      if (textPacket.text.startsWith('{"key":"server.dungeon_opened_by"')) {
+      if (
+        textPacket.text.startsWith('{"key":"server.dungeon_opened_by"')
+      ) {
         var keypop = JSON.parse(textPacket.text);
-          
-        this.bot.callKey(keypop.tokens.dungeon, client.server.name, keypop.tokens.name);
+        this.bot.callKey(
+          keypop.tokens.dungeon,
+          client.server.name,
+          keypop.tokens.name
+        );
       }
     }
   }
 
-
   /**
-   *  The constructor object - waits for all player tracking events
-   * 
+   * The constructor object - waits for all player tracking events
+   *
    * @param playerTracker the player tracker module
    * @param runtime the current account runtime
    * @param external the databse interface
    */
-  constructor(playerTracker: PlayerTracker, runtime: Runtime, external: External) 
-  {
-    //this.database = new Database();
+  constructor(
+    playerTracker: PlayerTracker,
+    runtime: Runtime,
+    external: External
+  ) {
     this.runtime = runtime;
+    this.startPlayerTracker(playerTracker)
+  }
 
-    // event emitted when a player enters the nexus
-    playerTracker.on('enter', (player) => 
-    {
-      //track null names
+  /**
+   * Start hooking events when players join and leave the nexus
+   * 
+   * @param tracker the PlayerTracker module
+   */
+  startPlayerTracker(tracker: PlayerTracker): void {
+    tracker.on('enter', (player) => {
+      /**
+       * Check if the player's username is unset or null and send a notification
+       */
       if (!player.name || player.name == "") {
         this.bot.callNullName(player);
         return;
       }
-      
-      // track invalid names
-      let alphaRegex = /^[A-z]+$/g;
-      if (!player.name.match(alphaRegex)) {
-        this.bot.callInvalidName(player)
+      /**
+       * Check if the player's username is invalid (non-alphanumeric) and send a notification
+       */
+      if (!player.name.match(this.alphaRegex)) {
+        this.bot.callInvalidName(player);
         return;
       }
-
-      // add a new last known location
-      external.addLocation(player.name, player.server, 'nexus');
-
-      // check if anyone is tracking the player
-      external.getTrackers(player.name, (trackers) => {
+      this.external.addLocation(player.name, player.server, "nexus");
+      /**
+        * Return a list of discord users tracking the player and send a notification with the area
+        */
+      this.external.getTrackers(player.name, (trackers) => {
         if (trackers.length > 0) {
           trackers.forEach((tracker) => {
             this.bot.callPlayer(player.name, tracker);
           });
         }
       });
-
-      // log player gold and check for any gold purchases
-      external.checkGold(player, (playerData, oldGold) => {
+      /**
+       * Check if the player's gold increased since the last time they were spotted
+       */
+      this.external.checkGold(player, (playerData, oldGold) => {
         if (playerData !== null) {
           this.bot.callGoldPurchase(playerData, oldGold);
         }
       });
-
-      // track big ballers
-      if (player.currentFame > 25000) {
+      /**
+       * Check if the player has high char fame and send a notification
+       */
+      if (player.currentFame > 30000) {
         this.bot.callBaller(player);
       }
-
-      // track rich players
+      /**
+       * Check if the player gold is high and send a notification
+       */
       if (player.gold > 20000) {
         this.bot.callRichPlayer(player.name, player.gold);
       }
-
-      // track game managers
-      if (RealmData.gmNames.includes(player.name) || player.guildName == "DecaGMs") {
+      /**
+       * Check if the player is in the DecaGMs guild
+       * Exclude MrEyeball as he spams the channel
+       */
+      if (
+        RealmData.gmNames.includes(player.name) ||
+        player.guildName == "DecaGMs"
+      ) {
         if (player.name !== "MrEyeball") {
           this.bot.callGameManager(player);
         }
       }
     });
 
-    // event emitted when a player leaves the nexus
-    playerTracker.on('leave' , (player) => 
-    {
-      // exclude null or None accounts because they cause errors
+    /**
+     * Called when a player leaves the nexus
+     * 
+     * @param player the player's PlayerData
+     */
+    tracker.on('leave', (player) => {
+      /*
+      * Fixes a weird bug where the players username gets unset and StatData can't be parsed
+      */
       if (!player.name || player.name == "") return;
-
-      if (RealmData.defaultNames.includes(player.name)) return;
-
-      // track name changes
-      external.checkNameChange(player.accountId, player.name, (result) => {
-        if (result !== null) {
-          this.bot.callNameChange(result, player.name);
+      /* Don't send notifications for default name accounts */
+      if (!player.nameChosen) return;
+      /**
+       * Check the players previous username by accountId
+       * If there's a username difference, call a username change
+       */
+      this.external.checkNameChange(
+        player.accountId,
+        player.name,
+        (result) => {
+          if (result !== null) {
+            this.bot.callNameChange(result, player);
+          }
         }
-      });
-
-      let area: string = '';
-      let px: number = player.worldPos.x;
-      let py: number = player.worldPos.y;
-
-      //Logger.log('RealmSpy', `Player ${player.name} left at X: ${player.worldPos.x} Y: ${player.worldPos.y}`, LogLevel.Warning);
-      
-      // check if the player left near bazaar portals
-      if (py < 142 && py > 137) {
-        if (px < 117 && px > 110) area = 'left';
-        if (px < 157 && px > 152) area = 'right';
-      }
-      // check if the player entered vault or guild hall
-      if (py < 144 && py > 140) {
-        if (px < 140 && px > 136) area = 'vault'
-        if (px < 133 && px > 129) area = 'ghall'
-      }
-      // check if the player entered a realm
-      if (py > 102 && py < 116) {
-        if (px < 145 && px > 123) {
-          area = 'realm'
-        }
-      }
-
-      if (area != '') {
-        // get the lowercase name to make it easier to search arrays
+      );
+      /**
+       * Parse the location the player left the nexus
+       */
+      let area = this.getPlayerArea(player);
+      if (!area) {
         let lowerCaseName = player.name.toLowerCase();
-
-        // add the players last known location
-        external.addLocation(player.name, player.server, area);
-        
-        if (area !== 'vault' && area !== 'ghall') {
+        this.external.addLocation(player.name, player.server, area);
+        /**
+         * If the player entered a realm or bazaar, check discord staff lists
+         */
+        if (area !== "vault" && area !== "ghall") {
           this.callDiscordStaff(player, area);
         }
-
-        //this.database.insertLocation(player, area);
-
-        // send a notification for any tracking players
-        external.getTrackers(player.name, (trackers) => {
+        /**
+         * Return a list of discord users tracking the player and send a notification with the area
+         */
+        this.external.getTrackers(player.name, (trackers) => {
           if (trackers.length > 0) {
             trackers.forEach((tracker) => {
               this.bot.callPlayer(player.name, tracker);
             });
           }
         });
+        // TODO: FIX CALLBACK HELL!
       }
-    });
+    })
   }
 
-  public callDiscordStaff(player: PlayerData, location: string): void
-  {
-    let lowerCaseName = player.name.toLowerCase();
-
-    if (RealmData.sbcStaff.includes(lowerCaseName)) {
-      this.bot.callStaffLocation('sbc', player.name, player.server, location);
+  /**
+   * Get the area where the player left the nexus based on their X,Y coordinates
+   * 
+   * @param player the PlayerData
+   */
+  public getPlayerArea(player: PlayerData): string {
+    let area: string = "";
+    let px: number = player.worldPos.x;
+    let py: number = player.worldPos.y;
+    /**
+     * Return a portal name based on player leave WorldPos
+     */
+    if (py < 142 && py > 137) {
+      if (px < 117 && px > 110) area = "left";
+      if (px < 157 && px > 152) area = "right";
     }
+    if (py < 144 && py > 140) {
+      if (px < 140 && px > 136) area = "vault";
+      if (px < 133 && px > 129) area = "ghall";
+    }
+    if (py > 102 && py < 116) {
+      if (px < 145 && px > 123) area = "realm";
+    }
+    if (area == '') return null;
+    return area;
+  }
 
-    if (location == 'left' || location == 'right') {
+  /**
+   * If a discord staff member enters a realm or a bazaar, send a message in the
+   * appropriate channel
+   *
+   * @param player the PlayerData
+   * @param location the location i.e 'left' 'right' 'realm'
+   */
+  public callDiscordStaff(player: PlayerData, location: string): void {
+    let lowerCaseName = player.name.toLowerCase();
+    /**
+     * Only check staff members who start raids in cloth bazaars
+     */
+    if (location == "left" || location == "right") {
       if (RealmData.pubhallsStaff.includes(lowerCaseName)) {
-        //this.addRaidLocation('pubhalls', player.name, `${player.server} ${bazaar} bazaar`)
-        this.bot.callStaffLocation('pubhalls', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "pubhalls",
+          player.name,
+          player.server,
+          location
+        );
       }
       if (RealmData.fungalStaff.includes(lowerCaseName)) {
-        this.bot.callStaffLocation('fungal', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "fungal",
+          player.name,
+          player.server,
+          location
+        );
       }
       if (RealmData.shattersStaff.includes(lowerCaseName)) {
-        this.bot.callStaffLocation('shatters', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "shatters",
+          player.name,
+          player.server,
+          location
+        );
       }
     }
-    if (location == 'realm') {
+    /**
+     * Only check staff members who start Oryx 3 raids
+     */
+    if (location == "realm") {
       if (RealmData.divinityStaff.includes(lowerCaseName)) {
-        this.bot.callStaffLocation('divinty', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "divinty",
+          player.name,
+          player.server,
+          location
+        );
       }
       if (RealmData.oryxSanctuaryStaff.includes(lowerCaseName)) {
-        this.bot.callStaffLocation('sanctuary', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "sanctuary",
+          player.name,
+          player.server,
+          location
+        );
       }
       if (RealmData.dungeoneerStaff.includes(lowerCaseName)) {
-        this.bot.callStaffLocation('dungeoneer', player.name, player.server, location);
+        this.bot.callStaffLocation(
+          "dungeoneer",
+          player.name,
+          player.server,
+          location
+        );
       }
+    }
+    /**
+     * Except SBC as they do clot bazaar and Oryx 3 runs
+     */
+    if (RealmData.sbcStaff.includes(lowerCaseName)) {
+      this.bot.callStaffLocation(
+        "sbc",
+        player.name,
+        player.server,
+        location
+      );
     }
   }
 }
