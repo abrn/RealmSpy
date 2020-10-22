@@ -114,15 +114,6 @@ export class DiscordBot {
         }
 
         if (args[0] == 'add') {
-
-            //let result = this.database.addTrackedPlayer(args[1], message.author.id);
-
-            //if (result) {
-                //message.author.send(`Player **\`\`${args[1]}\`\`** was added to your track list`);
-            //} else {
-                //message.author.send(`Player **\`\`${args[1]}\`\`** is already in your track list`);
-            //}
-
             if (args.length >= 1) {
                 this.realm.addToTracked(args[1], message.author.id, (result) => {
                     if (result) {
@@ -134,15 +125,6 @@ export class DiscordBot {
                 return;
             }
         } else if (args[0] == 'remove') {
-            
-            //let result = this.database.removeTrackedPlayer(args[1], message.author.id);
-
-            //if (result) {
-                //message.author.send(`Player **\`\`${args[1]}\`\`** was removed from your track list`);
-            //} else {
-                //message.author.send(`Player **\`\`${args[1]}\`\`** is not in your track list`);
-            //}
-            
             if (args.length >= 1) {
                 this.realm.removeFromTracked(args[1], message.author.id, (result) => {
                     if (result) {
@@ -319,6 +301,9 @@ export class DiscordBot {
      * @param player PlayerData
      */
     public callBaller(player: PlayerData): void {
+        if (RealmData.exceptionList.includes(player.name)) {
+            return;
+        }
         let channel = this.bot.channels.cache.get(Constants.Channels.high_fame);
         let parsedFame = RealmData.parseNumber(player.currentFame);
         let className = RealmData.parseClass(player.class);
@@ -333,7 +318,7 @@ export class DiscordBot {
     }
 
     /**
-     *  Sends a channel message when a dungeon key is popped in the nexus
+     * Sends a channel message when a dungeon key is popped in the nexus
      * 
      * @param name the name of the dungeon
      * @param server the server the key was popped in
@@ -362,7 +347,6 @@ export class DiscordBot {
      */
     public callGameManager(player: PlayerData): void {
         let channel = this.bot.channels.cache.get(Constants.Channels.game_managers);
-
         let username = player.name;
         let server = player.server;
         let gold = RealmData.parseNumber(player.gold);
@@ -430,8 +414,6 @@ export class DiscordBot {
      * @param player PlayerData
      */
     public callInvalidName(player: PlayerData): void {
-     
-        // #invalid-names
         let channel = this.bot.channels.cache.get(Constants.Channels.invalid_names);
         let parsedClass = RealmData.parseClass(player.class);
         let parsedGold = RealmData.parseNumber(player.gold);
@@ -452,15 +434,13 @@ export class DiscordBot {
      * Called when a null name account is spotted (now deprecated since the method is patched)
      * 
      * @param player PlayerData
+     * @deprecated null name method is patched
      */
     public callNullName(player: PlayerData): void {
-
-        // #null-names
         let channel = this.bot.channels.cache.get(Constants.Channels.null_names);
         let className = RealmData.parseClass(player.class);
         let parsedFame = RealmData.parseNumber(player.currentFame);
         let parsedGold = RealmData.parseNumber(player.gold);
-
 
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
@@ -477,16 +457,19 @@ export class DiscordBot {
      * Sends a message when a player is spotted changing their username
      * 
      * @param previousName the player's previous username
-     * @param newName the player's new username
+     * @param player the PlayerData
      */
-    public callNameChange(previousName: string, newName: string): void {
+    public callNameChange(previousName: string, player: PlayerData): void {
      
-        // #name-changes
+        /**
+         * Catch the "undefined" accountId StatData parsing glitch
+         */
+        if (player.accountId == undefined) return;
+        
         let channel = this.bot.channels.cache.get(Constants.Channels.name_changes);
-
         const embed = new Discord.MessageEmbed()
             .setColor(this.embedColor)
-            .setDescription(`Player \`\`${previousName}\`\` changed their username to [**${newName}**](https://realmeye.com/player/${newName})`)
+            .setDescription(`Player \`\`${previousName}\`\` changed their username to [**${player.name}**](https://realmeye.com/player/${player.name})\nAccount ID: \`${player.accountId}\``)
             .setTimestamp()
             .setFooter('RealmSpy', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128');
     
@@ -504,7 +487,6 @@ export class DiscordBot {
      */
     public callDiscordRun(server: string, usernames: string[], location: string): void {       
         let discordData = RealmData.parseDiscordServer(server);
-        
         let staffAmount = usernames.length;
         let description = `${staffAmount} ${discordData.name} staff members were spotted in the same location: \`${location}\`\n\n\`\`\``;
 
@@ -552,6 +534,9 @@ export class DiscordBot {
                 break;
         }
 
+        /**
+         * Check staff members seen in the same location and call a possible raid with all usernames
+         */
         this.realm.addStaffLocation(discordServer, username, server, location, (result) => {
             if (result !== null) {
                 let message = `${result.length} staff members spotted in same location\`\`\``;
@@ -607,7 +592,7 @@ export class DiscordBot {
             .setColor(this.embedColor)
             .setAuthor('Command list', 'https://cdn.discordapp.com/avatars/724018118510510142/ab18597f9dbd9b9b37ea0609bdb95b76.png?size=128')
             .setDescription(
-                '\n\n**SEND ALL COMMANDS TO THE BOT VIA PRIVATE MESSAGE\n' +
+                '\n\n**SEND ALL COMMANDS TO THE BOT VIA PRIVATE MESSAGE**\n' +
                 '```diff\n' + 
                 '+ !commands\n' +
                 '\tdisplay this message\n\n' +
@@ -766,15 +751,24 @@ export class External {
     }
 
     public checkNameChange(userId: string, username: string, callback: (result: string) => void): void {
+        /* filter out all weird name glitches */
         if (userId == undefined) callback(null);
         if (userId == null) callback(null);
         if (userId == "") callback(null);
+        /* glitched accounts */
+        if (username == "Jwddinrvnp") callback(null);
+        if (username == "None") callback(null);
 
         this.redis.get(`accountid:${userId}`, (error, reply) => {
             if (reply == null) {
                 this.redis.set(`accountid:${userId}`, `${username}`);
             } else {
                 if (username !== reply) {
+                    /* glitched account */
+                    if (username == "Jwddinrvnp" || username == "None") {
+                        callback(null);
+                        return;
+                    }
                     callback(reply);
                     this.redis.set(`accountid:${userId}`, `${username}`);
                 } else {
